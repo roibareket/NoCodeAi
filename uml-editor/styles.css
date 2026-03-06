@@ -1,0 +1,81 @@
+* {
+	box-sizing: border-box;
+}
+
+body {
+	margin: 0;
+	font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+	background: #1e1e1e;
+	color: #d4d4d4;
+	height: 100vh;
+	overflow: hidden;
+}
+
+.app {
+	display: flex;
+	flex-direction: column;
+	height: 100vh;
+}
+
+.canvas-wrap {
+	flex: 1;
+	overflow: hidden;
+	position: relative;
+	background: #252526;
+	background-image:
+		linear-gradient(rgba(255,255,255,.03) 1px, transparent 1px),
+		linear-gradient(90deg, rgba(255,255,255,.03) 1px, transparent 1px);
+	background-size: 20px 20px;
+}
+
+#canvas {
+	display: block;
+}
+
+.inline-body {
+	position: absolute;
+	z-index: 10;
+	display: none;
+	margin: 0;
+	padding: 6px 8px;
+	border: none;
+	outline: 1px solid #007acc;
+	background: #2d2d30;
+	color: #d4d4d4;
+	font: 12px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+	line-height: 16px;
+	resize: none;
+	overflow: auto;
+	box-sizing: border-box;
+}
+
+.inline-body.visible {
+	display: block;
+}
+
+.context-menu {
+	position: fixed;
+	z-index: 1000;
+	min-width: 140px;
+	background: #252526;
+	border: 1px solid #3c3c3c;
+	border-radius: 4px;
+	box-shadow: 0 4px 12px rgba(0,0,0,.4);
+	padding: 4px 0;
+}
+
+.context-menu button {
+	display: block;
+	width: 100%;
+	padding: 6px 12px;
+	background: none;
+	border: none;
+	color: #d4d4d4;
+	font-size: 13px;
+	text-align: left;
+	cursor: pointer;
+}
+
+.context-menu button:hover {
+	background: #2a2d2e;
+}
