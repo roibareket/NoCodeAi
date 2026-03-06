@@ -10,7 +10,11 @@ import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContaine
 import { Extensions as ViewContainerExtensions, IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ViewContainer, ViewContainerLocation } from '../../../common/views.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
+import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { NoCodeAiWelcomeView } from './nocodeaiWelcomeView.js';
+
+/** Chat view container id (from workbench.panel.chat) - we deregister it so the right sidebar shows only NoCodeAi. */
+const CHAT_VIEW_CONTAINER_ID = 'workbench.panel.chat';
 
 const NOCODEAI_VIEW_CONTAINER_ID = 'workbench.view.extension.nocodeai';
 const NOCODEAI_VIEW_CONTAINER_TITLE = localize2('nocodeai', "NoCodeAi");
@@ -34,7 +38,7 @@ export const NOCODEAI_VIEW_CONTAINER: ViewContainer = viewContainerRegistry.regi
 		mnemonicTitle: localize('miViewNoCodeAi', "NoCode&Ai"),
 		order: 100
 	},
-}, ViewContainerLocation.Sidebar);
+}, ViewContainerLocation.AuxiliaryBar);
 
 const welcomeViewDescriptor: IViewDescriptor = {
 	id: NoCodeAiWelcomeView.ID,
@@ -47,3 +51,21 @@ const welcomeViewDescriptor: IViewDescriptor = {
 };
 
 viewsRegistry.registerViews([welcomeViewDescriptor], NOCODEAI_VIEW_CONTAINER);
+
+/**
+ * Removes the Chat view container from the auxiliary bar so the right sidebar shows only the NoCodeAi (UML) HTML view.
+ */
+class RemoveChatFromAuxiliaryBarContribution {
+
+	static readonly ID = 'workbench.contrib.nocodeai.removeChatFromAuxiliaryBar';
+
+	constructor() {
+		const registry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
+		const chatContainer = registry.get(CHAT_VIEW_CONTAINER_ID);
+		if (chatContainer && registry.getViewContainerLocation(chatContainer) === ViewContainerLocation.AuxiliaryBar) {
+			registry.deregisterViewContainer(chatContainer);
+		}
+	}
+}
+
+registerWorkbenchContribution2(RemoveChatFromAuxiliaryBarContribution.ID, RemoveChatFromAuxiliaryBarContribution, WorkbenchPhase.BlockRestore);

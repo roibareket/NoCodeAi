@@ -23,7 +23,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { asWebviewUri } from '../../webview/common/webview.js';
-import { IWebviewService, WebviewContentPurpose } from '../../webview/browser/webview.js';
+import { IWebviewElement, IWebviewService, WebviewContentPurpose } from '../../webview/browser/webview.js';
 
 export const NOCODEAI_WELCOME_VIEW_ID = 'workbench.view.nocodeai.welcome';
 
@@ -54,6 +54,37 @@ export class NoCodeAiWelcomeView extends ViewPane {
 		return false;
 	}
 
+	/** Last HTML set into the webview; used to reload when the sidebar is reopened (iframe content is lost when body is removed from DOM). */
+	private lastLoadedHtml: string | undefined;
+	private webviewElement: IWebviewElement | undefined;
+
+	override render(): void {
+		super.render();
+		// No view header: webview fills the entire sidebar content.
+		this.headerVisible = false;
+		this._register(this.onDidChangeBodyVisibility(visible => {
+			if (visible && this.webviewElement) {
+				// When the sidebar is closed the composite container (and webview) is removed from DOM,
+				// which destroys the webview content. Re-mount and reload when visible again. Defer so
+				// the container is back in the document when we run.
+				const w = this.webviewElement;
+				const html = this.lastLoadedHtml;
+				const win = getWindow(this.element);
+				win.requestAnimationFrame(() => {
+					if (this.webviewElement !== w) {
+						return;
+					}
+					const el = (w as { element?: HTMLElement }).element;
+					if (el?.parentElement?.isConnected) {
+						w.reinitializeAfterDismount();
+					} else if (html !== undefined) {
+						w.setHtml(html);
+					}
+				});
+			}
+		}));
+	}
+
 	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
@@ -68,7 +99,7 @@ export class NoCodeAiWelcomeView extends ViewPane {
 		webviewContainer.style.height = '100%';
 		webviewContainer.style.minHeight = '0';
 
-		const webview = this._register(this.webviewService.createWebviewElement({
+		const webview = this.webviewService.createWebviewElement({
 			title: 'UML Editor - visualize code',
 			options: {
 				purpose: WebviewContentPurpose.WebviewView,
@@ -79,7 +110,9 @@ export class NoCodeAiWelcomeView extends ViewPane {
 				allowScripts: true,
 			},
 			extension: undefined
-		}));
+		});
+		this._register(webview);
+		this.webviewElement = webview;
 
 		const targetWindow = getWindow(webviewContainer);
 		webview.mountTo(webviewContainer, targetWindow);
@@ -91,7 +124,6 @@ export class NoCodeAiWelcomeView extends ViewPane {
 			tryRoots.push(URI.joinPath(folder.uri, 'uml-editor'));
 			tryRoots.push(URI.joinPath(folder.uri, 'NoCodeAi', 'uml-editor'));
 		}
-		// Fallback: app root (e.g. when running from repo, dirname(FileAccess.asFileUri('').path) is repo root)
 		try {
 			const appRoot = URI.file(dirname(FileAccess.asFileUri('').path));
 			tryRoots.push(URI.joinPath(appRoot, 'uml-editor'));
@@ -112,17 +144,22 @@ export class NoCodeAiWelcomeView extends ViewPane {
 						`$&<base href="${baseHref}">`
 					);
 					webview.setHtml(html);
+					this.lastLoadedHtml = html;
 				},
 				() => Promise.reject(undefined)
 			);
 		};
 
 		const showNoFileMessage = () => {
-			webview.setHtml(`<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body><p>Could not load <code>uml-editor/index.html</code>. Open the NoCodeAi repository as a folder, or ensure the UML editor exists at <code>uml-editor/index.html</code>.</p></body></html>`);
+			const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body><p>Could not load <code>uml-editor/index.html</code>. Open the NoCodeAi repository as a folder, or ensure the UML editor exists at <code>uml-editor/index.html</code>.</p></body></html>`;
+			webview.setHtml(html);
+			this.lastLoadedHtml = html;
 		};
 
 		if (tryRoots.length === 0) {
-			webview.setHtml(`<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body><p>Open the NoCodeAi repository as a folder to view the UML editor (<code>uml-editor/index.html</code>).</p></body></html>`);
+			const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body><p>Open the NoCodeAi repository as a folder to view the UML editor (<code>uml-editor/index.html</code>).</p></body></html>`;
+			webview.setHtml(html);
+			this.lastLoadedHtml = html;
 			return;
 		}
 
