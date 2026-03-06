@@ -286,6 +286,8 @@ class ToggleMaximizedAuxiliaryBar extends Action2 {
 				id: MenuId.AuxiliaryBarTitle,
 				group: 'navigation',
 				order: 1,
+				// Hide when NoCodeAi (UML editor) is the active auxiliary view - it keeps the bar always maximized (see nocodeai.contribution)
+				when: ContextKeyExpr.notEquals('activeAuxiliary', 'workbench.view.extension.nocodeai'),
 			}
 		});
 	}

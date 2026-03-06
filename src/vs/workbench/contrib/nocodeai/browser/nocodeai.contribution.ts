@@ -10,8 +10,11 @@ import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContaine
 import { Extensions as ViewContainerExtensions, IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ViewContainer, ViewContainerLocation } from '../../../common/views.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { NoCodeAiWelcomeView } from './nocodeaiWelcomeView.js';
+import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
+import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
 
 /** Chat view container id (from workbench.panel.chat) - we deregister it so the right sidebar shows only NoCodeAi. */
 const CHAT_VIEW_CONTAINER_ID = 'workbench.panel.chat';
@@ -54,18 +57,72 @@ viewsRegistry.registerViews([welcomeViewDescriptor], NOCODEAI_VIEW_CONTAINER);
 
 /**
  * Removes the Chat view container from the auxiliary bar so the right sidebar shows only the NoCodeAi (UML) HTML view.
+ * Handles both Chat already registered at BlockRestore and Chat registering later (e.g. different load order).
  */
-class RemoveChatFromAuxiliaryBarContribution {
+class RemoveChatFromAuxiliaryBarContribution extends Disposable {
 
 	static readonly ID = 'workbench.contrib.nocodeai.removeChatFromAuxiliaryBar';
 
 	constructor() {
+		super();
 		const registry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
+		const tryRemoveChat = (viewContainer: ViewContainer, viewContainerLocation: ViewContainerLocation) => {
+			if (viewContainer.id === CHAT_VIEW_CONTAINER_ID && viewContainerLocation === ViewContainerLocation.AuxiliaryBar) {
+				registry.deregisterViewContainer(viewContainer);
+			}
+		};
 		const chatContainer = registry.get(CHAT_VIEW_CONTAINER_ID);
-		if (chatContainer && registry.getViewContainerLocation(chatContainer) === ViewContainerLocation.AuxiliaryBar) {
-			registry.deregisterViewContainer(chatContainer);
+		if (chatContainer) {
+			const loc = registry.getViewContainerLocation(chatContainer);
+			if (loc === ViewContainerLocation.AuxiliaryBar) {
+				registry.deregisterViewContainer(chatContainer);
+			}
 		}
+		this._register(registry.onDidRegister(({ viewContainer, viewContainerLocation }) => tryRemoveChat(viewContainer, viewContainerLocation)));
 	}
 }
 
 registerWorkbenchContribution2(RemoveChatFromAuxiliaryBarContribution.ID, RemoveChatFromAuxiliaryBarContribution, WorkbenchPhase.BlockRestore);
+
+/**
+ * Keeps the secondary sidebar maximized when the NoCodeAi (UML editor) view is active and hides the maximize/restore control.
+ */
+class NoCodeAiAuxiliaryBarMaximizedContribution extends Disposable {
+
+	static readonly ID = 'workbench.contrib.nocodeai.auxiliaryBarMaximized';
+
+	constructor(
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
+	) {
+		super();
+		const ensureMaximizedWhenNoCodeAi = () => {
+			if (!this.layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
+				return;
+			}
+			const active = this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.AuxiliaryBar);
+			if (active?.getId() === NOCODEAI_VIEW_CONTAINER_ID && !this.layoutService.isAuxiliaryBarMaximized()) {
+				this.layoutService.setAuxiliaryBarMaximized(true);
+			}
+		};
+
+		this._register(this.paneCompositeService.onDidPaneCompositeOpen(e => {
+			if (e.viewContainerLocation === ViewContainerLocation.AuxiliaryBar && e.composite.getId() === NOCODEAI_VIEW_CONTAINER_ID) {
+				this.layoutService.setAuxiliaryBarMaximized(true);
+			}
+		}));
+
+		this._register(this.layoutService.onDidChangeAuxiliaryBarMaximized(() => {
+			ensureMaximizedWhenNoCodeAi();
+		}));
+
+		this._register(this.layoutService.onDidChangePartVisibility(() => {
+			ensureMaximizedWhenNoCodeAi();
+		}));
+
+		// Initial state when workbench is ready
+		ensureMaximizedWhenNoCodeAi();
+	}
+}
+
+registerWorkbenchContribution2(NoCodeAiAuxiliaryBarMaximizedContribution.ID, NoCodeAiAuxiliaryBarMaximizedContribution, WorkbenchPhase.AfterRestored);

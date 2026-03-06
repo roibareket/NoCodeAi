@@ -71,7 +71,7 @@ export class NoCodeAiWelcomeView extends ViewPane {
 				const html = this.lastLoadedHtml;
 				const win = getWindow(this.element);
 				win.requestAnimationFrame(() => {
-					if (this.webviewElement !== w) {
+					if (!this.element || this.webviewElement !== w) {
 						return;
 					}
 					const el = (w as { element?: HTMLElement }).element;
